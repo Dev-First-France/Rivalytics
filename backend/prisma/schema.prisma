@@ -1,0 +1,55 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+model User {
+  id          Int          @id @default(autoincrement())
+  email       String       @unique
+  password    String
+  createdAt   DateTime     @default(now())
+  competitors Competitor[] @relation("UserCompetitors")
+}
+
+model Competitor {
+  id          Int        @id @default(autoincrement())
+  name        String
+  linkedinUrl String?
+  blogUrl     String?
+  youtubeUrl  String?
+  eventUrl    String?
+  createdAt   DateTime   @default(now())
+  user        User?      @relation("UserCompetitors", fields: [userId], references: [id])
+  userId      Int?
+  posts       Post[]     @relation("CompetitorPosts")
+  reports     Report[]   @relation("CompetitorReports")
+}
+
+model Post {
+  id           Int         @id @default(autoincrement())
+  competitor   Competitor  @relation("CompetitorPosts", fields: [competitorId], references: [id])
+  competitorId Int
+  source       String
+  content      Json
+  url          String?
+  engagement   Json?
+  publishedAt  DateTime?
+  collectedAt  DateTime    @default(now())
+  reports      Report[]    @relation("TopPostReports")
+}
+
+model Report {
+  id           Int        @id @default(autoincrement())
+  competitor   Competitor @relation("CompetitorReports", fields: [competitorId], references: [id])
+  competitorId Int
+  weekStart    DateTime
+  weekEnd      DateTime
+  summary      String?
+  topPost      Post?      @relation("TopPostReports", fields: [topPostId], references: [id])
+  topPostId    Int?
+  createdAt    DateTime   @default(now())
+}
