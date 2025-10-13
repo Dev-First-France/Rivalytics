@@ -11,6 +11,8 @@ const PORT = process.env.PORT || 3001;
 
 const APIFY_TOKEN = process.env.APIFY_TOKEN || '';
 const YT_API_KEY  = process.env.YT_API_KEY  || '';
+const LI_ACCEPT_LANGUAGE = process.env.LI_ACCEPT_LANGUAGE || 'fr-FR,fr;q=0.9,en-US;q=0.8,en;q=0.7';
+const LI_UA = process.env.LI_UA || 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 Chrome/125 Safari/537.36';
 
 app.use(cors());
 app.use(express.json());
@@ -18,7 +20,7 @@ app.use(express.static('public'));
 
 const parser = new RSSParser();
 
-/* Helpers */
+/* ----------------------------- Helpers génériques ----------------------------- */
 function normalizeItem({ id, type, title, url, date, metrics }) {
   return { id, type, title, url, date, metrics: metrics || {} };
 }
@@ -46,7 +48,147 @@ function cacheGetSet(key, ttlMs, fn) {
   return Promise.resolve().then(fn).then(data => (_cache.set(key, { t: now, data }), data));
 }
 
-/* Stratégies & sources */
+/* --------------------------- LinkedIn: utils spécialisés --------------------------- */
+// Nombres abrégés: "1 234", "1.2k", "1,2 k", "2M", "5"
+function parseAbbrevNumber(raw) {
+  if (raw == null) return 0;
+  let s = String(raw).toLowerCase().replace(/\u00a0/g, ' ').trim();
+  const hasK = /\bk\b/.test(s);
+  const hasM = /\bm\b/.test(s);
+  s = s.replace(/[^\d.,\s]/g, '').replace(/\s+/g, '');
+  if (s.includes(',') && !s.includes('.')) s = s.replace(',', '.');
+  const n = parseFloat(s.replace(/[^0-9.]/g, '')) || 0;
+  if (hasM) return Math.round(n * 1_000_000);
+  if (hasK) return Math.round(n * 1_000);
+  return Math.round(n);
+}
+
+// Relatifs: "2 j", "3 h", "4 min", "2 weeks", "1 year"
+function parseRelativeTextToDate(txt) {
+  if (!txt) return null;
+  const s = txt.toLowerCase().replace(/\u00a0/g, ' ').trim();
+  const numMatch = s.match(/(\d+[.,]?\d*)/);
+  const n = numMatch ? parseFloat(numMatch[1].replace(',', '.')) : null;
+  if (n == null || isNaN(n)) return null;
+
+  let days = 0;
+  if (/\ban(s)?\b|\byears?\b|\byrs?\b/.test(s)) days = n * 365;
+  else if (/\bmois\b|\bmonths?\b|\bmos?\b/.test(s)) days = n * 30;
+  else if (/\bsemaines?\b|\bweeks?\b|\bsem\b/.test(s)) days = n * 7;
+  else if (/\bjours?\b|\bdays?\b|\bj\b/.test(s)) days = n;
+  else if (/\bheures?\b|\bhours?\b|\bh\b/.test(s)) days = n / 24;
+  else if (/\bminutes?\b|\bmins?\b|\bmin\b/.test(s)) days = n / (24 * 60);
+
+  if (days === 0) return null;
+  return new Date(Date.now() - days * 86400000);
+}
+
+/* --- Sélecteurs DOM LinkedIn --- */
+function liExtractLikes($scope) {
+  const a = $scope.find('[data-test-id="social-actions__reactions"]').first();
+  const attr = a.attr('data-num-reactions');
+  if (attr) return parseAbbrevNumber(attr);
+  const span = $scope.find('span[data-test-id="social-actions__reaction-count"]').first().text().trim();
+  if (span) return parseAbbrevNumber(span);
+  const aria = a.attr('aria-label');
+  if (aria) {
+    const m = aria.match(/(\d[\d\s.,\u00a0]*)/);
+    if (m) return parseAbbrevNumber(m[1]);
+  }
+  return 0;
+}
+function liExtractComments($scope) {
+  const a = $scope.find('[data-test-id="social-actions__comments"]').first();
+  const attr = a.attr('data-num-comments');
+  if (attr) return parseAbbrevNumber(attr);
+  const aria = a.attr('aria-label');
+  if (aria) {
+    const m = aria.match(/(\d[\d\s.,\u00a0]*)/);
+    if (m) return parseAbbrevNumber(m[1]);
+  }
+  const legacy = $scope.find('.social-details-social-counts__comments').first().text().trim();
+  if (legacy) {
+    const m = legacy.match(/(\d[\d\s.,\u00a0]*)/);
+    if (m) return parseAbbrevNumber(m[1]);
+  }
+  return 0;
+}
+function liPickText($scope) {
+  return $scope.find('[data-test-id="main-feed-activity-card__commentary"]').first().text().trim() || '';
+}
+function liPickTimeRaw($scope) {
+  const t = $scope.find('time[datetime]').first();
+  if (t.length) return { iso: t.attr('datetime'), raw: t.text().trim() || null };
+  const t2 = $scope.find('time').first().text().trim();
+  return { iso: null, raw: t2 || null };
+}
+function liPickActivityUrn($scope) {
+  return $scope.attr('data-activity-urn')
+      || $scope.attr('data-featured-activity-urn')
+      || $scope.attr('data-attributed-urn')
+      || null;
+}
+function liUrnToUrl(urn) {
+  return urn ? `https://www.linkedin.com/feed/update/${encodeURIComponent(urn)}` : null;
+}
+function liPickPostUrl($scope) {
+  const overlay = $scope.find('a.main-feed-card__overlay-link').first().attr('href');
+  const deep = $scope.find('a[href*="/posts/"], a[href*="activity-"]').first().attr('href');
+  return overlay || deep || null;
+}
+
+/* --- Canonicalisation & clé de dédup LinkedIn --- */
+// Normalise l'hôte et nettoie quelques bricoles
+function liNormalizeUrl(u) {
+  if (!u) return null;
+  try {
+    const url = new URL(u, 'https://www.linkedin.com');
+    if (url.hostname.startsWith('fr.')) url.hostname = url.hostname.slice(3);
+    if (url.hostname !== 'www.linkedin.com') url.hostname = 'www.linkedin.com';
+    // on retire utm/trackers fréquents
+    ['utm_source','utm_medium','utm_campaign','trk','trackingId','originalSubdomain'].forEach(k=>url.searchParams.delete(k));
+    // uniformise un trailing slash
+    if (url.pathname.endsWith('/') && !/^\/$/.test(url.pathname)) url.pathname = url.pathname.replace(/\/+$/,'');
+    return url.toString();
+  } catch {
+    return u;
+  }
+}
+
+// Extrait l'activityId depuis n'importe quelle variante d'URL (même encodée)
+function liActivityIdFromUrl(u) {
+  if (!u) return null;
+  try {
+    const s = decodeURIComponent(u);
+    // urn:li:activity:7382399558741483521
+    const m1 = s.match(/activity:(\d{8,})/);
+    if (m1) return m1[1];
+    // ...-activity-7382399558741483521-...
+    const m2 = s.match(/activity-(\d{8,})/);
+    if (m2) return m2[1];
+    return null;
+  } catch { return null; }
+}
+// Extrait activityId depuis une URN (si fournie)
+function liActivityIdFromUrn(urn) {
+  if (!urn) return null;
+  const s = decodeURIComponent(String(urn));
+  const m = s.match(/activity:(\d{8,})/);
+  return m ? m[1] : null;
+}
+
+// Clé canonique de déduplication pour un item LinkedIn
+function liCanonicalKey({ url, id, _activityId }) {
+  const fromUrl = liActivityIdFromUrl(url);
+  const aid = _activityId || fromUrl;
+  if (aid) return `li:act:${aid}`;
+  const norm = liNormalizeUrl(url || '');
+  if (norm) return `li:url:${norm}`;
+  // fallback stable
+  return `li:id:${id}`;
+}
+
+/* ----------------------------- Stratégies & sources ----------------------------- */
 const STRATEGIES = {
   all:      ['rss','linkedin','instagram','tiktok','youtube'],
   cheap:    ['rss','linkedin','youtube'],
@@ -62,7 +204,7 @@ function parseSources(req) {
   return new Set(list.filter(s => allowed.has(s)));
 }
 
-/* RSS publics */
+/* ------------------------------------- RSS ------------------------------------- */
 async function fetchRSS(urls = [], days = 7) {
   const min = cutoffDays(days);
   const all = [];
@@ -93,24 +235,34 @@ async function fetchRSS(urls = [], days = 7) {
   return all;
 }
 
-/* LinkedIn (guest/SEO) */
+/* ---------------------- LinkedIn (SEO + DOM avec métriques) --------------------- */
 async function fetchLinkedInByUrl(url, { days = 3650, limit = 20 } = {}) {
   try {
-    const html = await cacheGetSet(`li:${url}`, 5*60*1000, async () => {
-      const { data } = await axios.get(url, {
-        headers: { 'User-Agent': 'Mozilla/5.0', 'Accept-Language': 'fr-FR,fr;q=0.9' },
-        timeout: 20000
+    const fixedUrl = String(url || '').replace(/^https:\/\/fr\./, 'https://www.');
+    const html = await cacheGetSet(`li:${fixedUrl}`, 5*60*1000, async () => {
+      const { data } = await axios.get(fixedUrl, {
+        headers: {
+          'User-Agent': LI_UA,
+          'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8',
+          'Accept-Language': LI_ACCEPT_LANGUAGE,
+          'Cache-Control': 'no-cache',
+          'Pragma': 'no-cache',
+        },
+        maxRedirects: 5,
+        timeout: 30000,
+        validateStatus: s => (s >= 200 && s < 400)
       });
       return data;
     });
 
     const $ = cheerio.load(html);
+
+    // --- 1) JSON-LD ---
     const blocks = [];
     $('script[type="application/ld+json"]').each((_, el) => {
       const txt = $(el).contents().text().trim();
       if (txt) blocks.push(txt);
     });
-    if (!blocks.length) return { company: null, items: [] };
 
     const graphs = [];
     for (const txt of blocks) {
@@ -132,38 +284,115 @@ async function fetchLinkedInByUrl(url, { days = 3650, limit = 20 } = {}) {
       country: org.address?.addressCountry || null,
       logo: org.logo?.contentUrl || null,
       description: org.description || null,
-      url
+      url: liNormalizeUrl(fixedUrl)
     } : null;
 
     const min = cutoffDays(days);
-    const postsAll = graphs
+
+    const jsonldItems = graphs
       .filter(o => o['@type']==='DiscussionForumPosting')
       .map(p => {
-        const u = p.url || url;
+        const u = liNormalizeUrl(p.url || fixedUrl);
         const dt = p.datePublished || Date.now();
-        const id = 'li-' + crypto.createHash('sha256').update(`${u}|${dt}`).digest('hex').slice(0,16);
-        return {
+        const actId = liActivityIdFromUrl(u);
+        const id = actId ? `li-${actId}` :
+          ('li-' + crypto.createHash('sha256').update(`${u}|${dt}`).digest('hex').slice(0,16));
+        return normalizeItem({
           id,
           type: 'LinkedIn',
           title: (p.text || '').split('\n')[0]?.slice(0,120) || 'Post LinkedIn',
           url: u,
           date: toISODate(dt),
           metrics: {}
-        };
+        });
       })
-      .filter(x => new Date(x.date) >= min)
-      .sort((a,b)=> a.date < b.date ? 1 : -1);
+      .filter(x => !x.date || new Date(x.date) >= min);
 
-    const posts = postsAll.slice(0, Math.min(Number(limit)||20, 50));
+    // --- 2) DOM des cartes (avec likes/commentaires) ---
+    const $cards = $('article[data-id="main-feed-card"], [data-test-id="main-feed-activity-card"]');
+    const domRaw = [];
+    $cards.each((i, el) => {
+      const $card = $(el);
+      const text = liPickText($card);
+      const when = liPickTimeRaw($card);
+      const likes = liExtractLikes($card);
+      const comments = liExtractComments($card);
 
-    const seen = new Set();
-    const items = posts.filter(x => {
-      const u = x.url || '';
-      if (!u) return true;
-      if (seen.has(u)) return false;
-      seen.add(u);
-      return true;
+      const urn = liPickActivityUrn($card);
+      const fromUrn = liActivityIdFromUrn(urn);
+      const link = liNormalizeUrl(liPickPostUrl($card) || liUrnToUrl(urn));
+
+      let dateIso = null;
+      if (when.iso) {
+        const dt = new Date(when.iso);
+        if (!isNaN(dt)) dateIso = dt.toISOString().slice(0,10);
+      } else if (when.raw) {
+        const guess = parseRelativeTextToDate(when.raw);
+        if (guess) dateIso = guess.toISOString().slice(0,10);
+      }
+      if (dateIso) {
+        const dt = new Date(dateIso);
+        if (dt < min) return;
+      }
+
+      // ID: privilégie activityId si dispo
+      const actFromUrl = liActivityIdFromUrl(link);
+      const activityId = fromUrn || actFromUrl;
+      const idSeed = activityId ? `act:${activityId}` : (link || text || String(i));
+      const id = 'li-' + crypto.createHash('sha256').update(idSeed).digest('hex').slice(0,16);
+
+      domRaw.push(
+        { ...normalizeItem({
+            id,
+            type: 'LinkedIn',
+            title: text?.split('\n')[0]?.slice(0, 120) || 'Post LinkedIn',
+            url: link || null,
+            date: dateIso || null,
+            metrics: { likes, comments }
+          }),
+          _activityId: activityId || null
+        }
+      );
     });
+
+    // --- 3) Merge + dédup par clé canonique (activityId > url) ---
+    const byKey = new Map(); // key -> item
+    const preferWithMetrics = (a, b) => {
+      const has = x => x && (x.likes > 0 || x.comments > 0 || x.views > 0 || x.shares > 0);
+      if (has(a.metrics) && !has(b.metrics)) return a;
+      if (!has(a.metrics) && has(b.metrics)) return b;
+      // si les 2 ont métriques ou aucune: on préfère celui avec date connue
+      if (a.date && !b.date) return a;
+      if (!a.date && b.date) return b;
+      // sinon garde le plus récent si possible
+      const da = a.date ? new Date(a.date).getTime() : 0;
+      const db = b.date ? new Date(b.date).getTime() : 0;
+      return da >= db ? a : b;
+    };
+
+    const push = (it) => {
+      // 🔑 on enrichit chaque item d’un activityId s’il manque
+      if (!it._activityId) {
+        it._activityId = liActivityIdFromUrl(it.url) || liActivityIdFromUrn(it.id);
+      }
+      const key = liCanonicalKey(it);
+      const ex = byKey.get(key);
+      if (!ex) { byKey.set(key, it); return; }
+      byKey.set(key, preferWithMetrics(ex, it));
+    };
+
+    // On met d'abord DOM (plus riche), puis JSON-LD (compléter si manquant)
+    for (const it of domRaw) push(it);
+    for (const it of jsonldItems) push(it);
+
+    const itemsAll = Array.from(byKey.values());
+
+    // Tri décroissant par date
+    const getDate = (x) => x.date ? new Date(x.date).getTime() : 0;
+    itemsAll.sort((a,b) => getDate(b) - getDate(a));
+
+    // Limite
+    const items = itemsAll.slice(0, Math.min(Number(limit)||20, 50));
 
     return { company, items };
   } catch (e) {
@@ -175,7 +404,6 @@ async function fetchLinkedInByUrl(url, { days = 3650, limit = 20 } = {}) {
 async function fetchLinkedIn(nameOrUrl, opts) {
   if (!nameOrUrl) return { company: null, items: [] };
   const raw = String(nameOrUrl).trim();
-
   if (/^https?:\/\//i.test(raw)) return fetchLinkedInByUrl(raw, opts);
 
   const base1 = 'https://www.linkedin.com/company/';
@@ -203,7 +431,7 @@ async function fetchLinkedIn(nameOrUrl, opts) {
   return fetchLinkedInByUrl(candidates[0], opts);
 }
 
-/* Instagram via Apify */
+/* ----------------------------------- Instagram ---------------------------------- */
 async function scrapeInstagramApify(username, limit = 12) {
   username = String(username || '').replace(/^@/, '').trim();
   if (!username) return [];
@@ -242,7 +470,7 @@ async function scrapeInstagramApify(username, limit = 12) {
   }
 }
 
-/* TikTok via Apify */
+/* ------------------------------------- TikTok ----------------------------------- */
 async function scrapeTikTokApify(username, limit = 12) {
   username = String(username || '').replace(/^@/, '').trim();
   if (!username) return [];
@@ -293,7 +521,7 @@ async function scrapeTikTokApify(username, limit = 12) {
   }
 }
 
-/* YouTube Data API v3 */
+/* ----------------------------------- YouTube ------------------------------------ */
 const YT_BASE = 'https://www.googleapis.com/youtube/v3';
 
 async function ytResolveChannelId(channelOrHandleOrName) {
@@ -367,7 +595,7 @@ async function fetchYouTube({ channel, q = '', limit = 12, days = 7 }) {
   }
 }
 
-/* Config par défaut */
+/* ------------------------------- Config par défaut ------------------------------ */
 const COMPETITORS = {
   devfirst: {
     rss: ['https://dev.to/feed/tag/nestjs', 'https://hnrss.org/frontpage'],
@@ -389,7 +617,7 @@ const COMPETITORS = {
   },
 };
 
-/* Routes */
+/* ------------------------------------- Routes ----------------------------------- */
 app.get('/api/linkedin', async (req, res) => {
   try {
     const slug = String(req.query.slug || '').trim();
@@ -463,16 +691,22 @@ app.get('/api/collect', async (req, res) => {
     const [liItems, rssItems, igItems, ttItems, ytItems] = await Promise.all(jobs);
 
     const merged = [...liItems, ...rssItems, ...ttItems, ...igItems, ...ytItems]
-      .sort((a, b) => a.date < b.date ? 1 : -1);
+      .sort((a, b) => (a.date && b.date) ? (a.date < b.date ? 1 : -1) : (!a.date && b.date ? 1 : -1));
 
-    const seenUrl = new Set();
-    const items = merged.filter(x => {
-      const u = x.url || '';
-      if (!u) return true;
-      if (seenUrl.has(u)) return false;
-      seenUrl.add(u);
-      return true;
-    });
+    // 🔑 Dédup au niveau agrégateur aussi (clé canonique)
+    const byKey = new Map();
+    const keyFor = (it) => {
+      if (it.type === 'LinkedIn') return liCanonicalKey(it);
+      // autres sources: dédup par URL normalisée
+      const norm = it.url ? new URL(it.url, 'https://example.com') : null;
+      const nk = norm ? (norm.toString()) : (it.id || JSON.stringify(it));
+      return `${it.type}:${nk}`;
+    };
+    for (const it of merged) {
+      const k = keyFor(it);
+      if (!byKey.has(k)) byKey.set(k, it);
+    }
+    const items = Array.from(byKey.values());
 
     res.json({
       items,
