@@ -1,5 +1,5 @@
 <!doctype html>
-<html lang="fr">
+<html lang="fr" class="dark">
   <head>
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
@@ -842,11 +842,11 @@
       }
 
       function App() {
-        const [dark, setDark] = useState(() => localStorage.getItem('theme') === 'dark');
+        const dark = true;
         useEffect(() => {
-          document.documentElement.classList.toggle('dark', dark);
-          localStorage.setItem('theme', dark ? 'dark' : 'light');
-        }, [dark]);
+          document.documentElement.classList.add('dark');
+          localStorage.setItem('theme', 'dark');
+        }, []);
 
         const [tab, setTab] = useState('search');
         const [name, setName] = useState(() => localStorage.getItem('rivalytics:lastName') || '');
@@ -1314,9 +1314,6 @@
                         </button>
                       </>
                     )}
-                    <button onClick={() => setDark((prev) => !prev)} className="chip flex items-center justify-center" title="Basculer thème">
-                      {dark ? '🌞' : '🌙'}
-                    </button>
                   </div>
                 </div>
               </div>
@@ -1448,13 +1445,11 @@
                         </span>
                       </div>
 
-                      {/* Boutons de type */}
+                      {/* Types disponibles */}
                       <div className="flex items-center gap-2 flex-wrap mt-1">
                         {TYPE_ORDER.filter((type) => (grouped[type] ?? []).length).map((type) => (
-                          <button
+                          <div
                             key={type}
-                            type="button"
-                            onClick={() => toggleType(type)}
                             className={cls(
                               'chip inline-flex items-center gap-2',
                               types.has(type) && 'active'
@@ -1468,7 +1463,7 @@
                             <span className="text-xs rounded-md px-1.5 py-0.5 bg-white/10 text-white/90">
                               {(grouped[type] ?? []).length}
                             </span>
-                          </button>
+                          </div>
                         ))}
                       </div>
                     </div>
@@ -1591,9 +1586,7 @@
                               <h4 className="text-lg font-semibold">{type}</h4>
                               <span className="text-sm text-white/70">({(grouped[type] ?? []).length})</span>
                               <div className="ml-2">
-                                <button
-                                  type="button"
-                                  onClick={() => toggleType(type)}
+                                <div
                                   className={cls('chip inline-flex items-center gap-2', types.has(type) && 'active')}
                                   title={`${type} • ${(grouped[type] ?? []).length}`}
                                 >
@@ -1604,7 +1597,7 @@
                                   <span className="text-xs rounded-md px-1.5 py-0.5 bg-white/10 text-white/90">
                                     {(grouped[type] ?? []).length}
                                   </span>
-                                </button>
+                                </div>
                               </div>
                             </div>
                             <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
