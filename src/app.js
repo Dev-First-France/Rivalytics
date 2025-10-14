@@ -7,6 +7,7 @@ import { errorHandler } from './middlewares/error.js';
 
 const app = express();
 
+app.set('trust proxy', 1);
 app.use(createCorsMiddleware());
 app.use(express.json({ limit: '1mb' }));
 app.use(cookieParser());
