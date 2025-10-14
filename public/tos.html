@@ -1,0 +1,193 @@
+<!doctype html>
+<html lang="fr">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Rivalytics · Conditions d'utilisation</title>
+    <link rel="icon" href="/favicon-v2.ico" />
+    <meta name="theme-color" content="#0b0f1a" />
+
+    <script src="https://cdn.tailwindcss.com"></script>
+
+    <style>
+      :root{
+        --glass-bg: rgba(255,255,255,.16);
+        --glass-stroke: rgba(255,255,255,.35);
+        --glass-shadow: 0 10px 30px rgba(2, 8, 23, .20), inset 0 0 0 1px rgba(255,255,255,.12);
+        --chip-stroke: rgba(255,255,255,.35);
+      }
+      body{
+        background:
+          radial-gradient(1200px 600px at 10% -10%, rgba(120,115,245,.18), transparent 60%),
+          radial-gradient(1000px 700px at 110% 20%, rgba(236,72,153,.14), transparent 60%),
+          radial-gradient(900px 600px at 50% 120%, rgba(34,197,94,.10), transparent 60%),
+          linear-gradient(180deg, #0b1020 0%, #0b0f1a 60%, #0a0d18 100%);
+        min-height: 100vh;
+        color: #e5e7eb;
+      }
+      .bg-noise{
+        position: fixed; inset: -10vmax;
+        pointer-events: none;
+        background-image: url("data:image/svg+xml;utf8,<?xml version='1.0'?><svg xmlns='http://www.w3.org/2000/svg' width='220' height='220' viewBox='0 0 220 220'><filter id='n'><feTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='2' stitchTiles='stitch'/><feColorMatrix type='saturate' values='0'/><feComponentTransfer><feFuncA type='table' tableValues='0 0 .035 .08 .12 .08 .035 0 0'/></feComponentTransfer></filter><rect width='100%' height='100%' filter='url(%23n)'/></svg>");
+        opacity:.35;
+        mix-blend-mode: soft-light;
+      }
+      .glassbar{
+        border-radius: 20px;
+        padding: .75rem 1rem;
+        max-width: 74rem;
+        border: 1px solid var(--glass-stroke);
+        background: linear-gradient(180deg, rgba(255,255,255,.18), rgba(255,255,255,.08));
+        backdrop-filter: blur(14px) saturate(140%);
+        -webkit-backdrop-filter: blur(14px) saturate(140%);
+        box-shadow: var(--glass-shadow);
+      }
+      .card{
+        border-radius: 18px;
+        background: var(--glass-bg);
+        backdrop-filter: blur(14px) saturate(140%);
+        -webkit-backdrop-filter: blur(14px) saturate(140%);
+        border: 1px solid var(--glass-stroke);
+        box-shadow: var(--glass-shadow);
+      }
+      .chip{
+        padding:.6rem 1rem;
+        border-radius: 999px;
+        border: 1px solid var(--chip-stroke);
+        background: linear-gradient(180deg, rgba(255,255,255,.28), rgba(255,255,255,.14));
+        backdrop-filter: blur(8px);
+        -webkit-backdrop-filter: blur(8px);
+        color: #f9fafb;
+        font-weight: 600;
+        display: inline-flex;
+        align-items: center;
+        gap: .4rem;
+        transition: transform .18s ease, filter .18s ease;
+      }
+      .chip:hover{
+        transform: translateY(-1px);
+        filter: brightness(1.05);
+      }
+      .blob{
+        position:absolute; filter: blur(40px); opacity:.55; mix-blend-mode: screen;
+        pointer-events:none; z-index:0;
+      }
+      .blob1{ width:420px; height:420px; background: radial-gradient(closest-side, rgba(120,115,245,.55), transparent 70%); top:-80px; left:-80px; }
+      .blob2{ width:380px; height:380px; background: radial-gradient(closest-side, rgba(236,72,153,.45), transparent 70%); bottom:-60px; right:-60px; }
+      .blob3{ width:320px; height:320px; background: radial-gradient(closest-side, rgba(34,197,94,.40), transparent 70%); top:40%; right:15%; }
+    </style>
+  </head>
+  <body class="relative overflow-x-hidden">
+    <div class="bg-noise"></div>
+    <div class="blob blob1"></div>
+    <div class="blob blob2"></div>
+    <div class="blob blob3"></div>
+
+    <div class="relative min-h-screen flex flex-col z-10">
+      <header class="px-3 sm:px-6 pt-6">
+        <div class="glassbar mx-auto">
+          <div class="max-w-6xl mx-auto flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
+            <div>
+              <h1 class="text-2xl font-extrabold tracking-tight text-transparent bg-clip-text bg-gradient-to-r from-indigo-300 via-fuchsia-300 to-emerald-300 drop-shadow">
+                Rivalytics
+              </h1>
+              <p class="text-xs text-white/70 mt-0.5">Analyse concurrentielle multi-plateformes</p>
+            </div>
+            <a href="/" class="chip w-full sm:w-auto justify-center">← Retour au dashboard</a>
+          </div>
+        </div>
+      </header>
+
+      <main class="flex-1 w-full max-w-4xl mx-auto px-4 sm:px-6 py-12">
+        <article class="card p-6 sm:p-10 space-y-8 text-white/80">
+          <div class="space-y-2">
+            <p class="uppercase text-xs tracking-[0.25em] text-white/50">Dernière mise à jour : avril 2024</p>
+            <h2 class="text-3xl sm:text-4xl font-bold text-white drop-shadow">Conditions d'utilisation</h2>
+            <p>
+              En accédant à Rivalytics vous acceptez les conditions décrites ci-dessous. Elles ont pour but
+              de protéger vos données, celles de vos concurrents et de garantir un usage conforme de la plateforme.
+            </p>
+          </div>
+
+          <section class="space-y-3">
+            <h3 class="text-xl font-semibold text-white">1. Objet</h3>
+            <p>
+              Rivalytics est un outil d'analyse concurrentielle qui agrège des contenus publics et des données
+              fournies volontairement par l'utilisateur pour proposer un tableau de bord synthétique.
+            </p>
+          </section>
+
+          <section class="space-y-3">
+            <h3 class="text-xl font-semibold text-white">2. Création et accès</h3>
+            <p>
+              L'accès à certaines fonctionnalités nécessite une authentification via des services tiers (ex : TikTok OAuth).
+              Vous vous engagez à fournir des informations exactes et à maintenir la confidentialité de vos identifiants.
+            </p>
+          </section>
+
+          <section class="space-y-3">
+            <h3 class="text-xl font-semibold text-white">3. Données et contenus</h3>
+            <ul class="space-y-2 text-sm sm:text-base leading-relaxed text-white/75 list-disc pl-5">
+              <li>Les contenus importés restent la propriété de leurs éditeurs respectifs.</li>
+              <li>Vous garantissez disposer des droits nécessaires pour analyser les comptes connectés.</li>
+              <li>Rivalytics se limite à un usage interne d'analyse et ne redistribue pas vos données.</li>
+            </ul>
+          </section>
+
+          <section class="space-y-3">
+            <h3 class="text-xl font-semibold text-white">4. Utilisation acceptable</h3>
+            <ul class="space-y-2 text-sm sm:text-base leading-relaxed text-white/75 list-disc pl-5">
+              <li>Interdiction d'utiliser la plateforme pour collecter ou exposer des données personnelles sensibles.</li>
+              <li>Interdiction de contourner les limites techniques, d'effectuer du scraping massif ou d'automatiser des requêtes abusives.</li>
+              <li>Respect des conditions d'utilisation des plateformes partenaires (TikTok, LinkedIn, YouTube, etc.).</li>
+            </ul>
+          </section>
+
+          <section class="space-y-3">
+            <h3 class="text-xl font-semibold text-white">5. Disponibilité du service</h3>
+            <p>
+              Rivalytics est fourni « en l'état ». Nous mettons tout en œuvre pour garantir une disponibilité élevée mais ne
+              pouvons être tenus responsables des interruptions causées par des fournisseurs tiers ou par la maintenance.
+            </p>
+          </section>
+
+          <section class="space-y-3">
+            <h3 class="text-xl font-semibold text-white">6. Responsabilité</h3>
+            <p>
+              Rivalytics ne saurait être tenu responsable des décisions commerciales prises sur la base des analyses affichées
+              ni des sanctions liées à un non-respect des conditions des plateformes sociales connectées.
+            </p>
+          </section>
+
+          <section class="space-y-3">
+            <h3 class="text-xl font-semibold text-white">7. Évolution des conditions</h3>
+            <p>
+              Nous pouvons mettre à jour ces conditions pour refléter les évolutions du service ou des obligations légales.
+              Toute modification substantielle sera communiquée via l'interface ou par e-mail, le cas échéant.
+            </p>
+          </section>
+
+          <section class="space-y-3">
+            <h3 class="text-xl font-semibold text-white">8. Contact</h3>
+            <p>
+              Pour toute question sur ces conditions, contactez <a href="mailto:contact@dev-first.com" class="text-indigo-200 hover:text-indigo-100">contact@dev-first.com</a>.
+            </p>
+          </section>
+        </article>
+      </main>
+
+      <footer class="mt-16 border-t border-white/10">
+        <div class="max-w-6xl mx-auto px-4 py-8 flex flex-col gap-4 text-xs text-white/70 text-center sm:flex-row sm:items-center sm:justify-between sm:text-left">
+          <p class="leading-relaxed">
+            Données <b>réelles</b> via RSS &amp; YouTube + LinkedIn (public “guest”). Instagram &amp; TikTok via Apify (optionnel).
+          </p>
+          <nav class="flex items-center justify-center gap-5 font-medium">
+            <a href="/privacy.html" class="transition-colors hover:text-white">Politique de confidentialité</a>
+            <span class="hidden sm:block text-white/30">•</span>
+            <a href="/tos.html" class="transition-colors hover:text-white">Conditions d'utilisation</a>
+          </nav>
+        </div>
+      </footer>
+    </div>
+  </body>
+</html>
