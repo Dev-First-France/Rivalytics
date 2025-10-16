@@ -2,9 +2,7 @@
 import {
   collectSources,
   fetchLinkedInByUrl,
-  fetchRSS,
   fetchYouTube,
-  getCompetitorConfig,
 } from '../services/collect/collect.service.js';
 // Remarque : les handlers Instagram/TikTok sont désactivés (API payante).
 import { createError } from '../utils/errors.js';
@@ -28,24 +26,6 @@ export async function getLinkedIn(req, res, next) {
       console.error('[LinkedIn] failed:', error.message);
     }
     next(error.status ? error : createError(500, 'linkedin_fetch_failed'));
-  }
-}
-
-// Récupère les entrées RSS configurées ou passées en override.
-export async function getRSS(req, res, next) {
-  try {
-    const name = String(req.query.name || '').trim().toLowerCase();
-    const days = Number(req.query.days || 7);
-    const override = String(req.query.rss || '')
-      .split(',')
-      .map((entry) => entry.trim())
-      .filter(Boolean);
-    const cfg = getCompetitorConfig(name);
-    const rssList = override.length > 0 ? override : cfg.rss || [];
-    const items = await fetchRSS(rssList, days);
-    res.json({ items });
-  } catch (error) {
-    next(error);
   }
 }
 
