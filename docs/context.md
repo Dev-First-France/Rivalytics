@@ -3,7 +3,7 @@
 ## Aperçu général
 
 - **Stack** : Node.js (ESM) + Express pour l’API, PostgreSQL via `pg`, frontend single-page React (UMD) servi depuis `public/index.html`.
-- **Objectif produit** : agrégation multi-sources (LinkedIn, RSS, Instagram, TikTok, YouTube) pour surveiller des entreprises, avec authentification, favoris (“targets”), analyses sur demande et historique des runs.
+- **Objectif produit** : agrégation multi-sources (LinkedIn, Instagram, TikTok, YouTube) pour surveiller des entreprises, avec authentification, favoris (“targets”), analyses sur demande et historique des runs.
 - **Mode d’exécution** : `npm start` (node `src/server.js`) ou `npm run dev` (nodemon). L’API écoute par défaut sur `PORT` (3001 si absent).
 
 ## Arborescence clé
@@ -72,11 +72,10 @@ Tables provisionnées par `ensureSchema()` :
 
 ### Agrégation / Sources (`/api`)
 - `GET /api/linkedin?slug|url&days&limit`
-- `GET /api/rss?name&days&rss=csv`
 - `GET /api/instagram?username&limit`
 - `GET /api/tiktok?username&limit`
 - `GET /api/youtube?channel&q&days&limit`
-- `GET /api/collect?name&strategy&sources=csv&days&limit&rss=...&instagram=...&linkedin_url=...`
+- `GET /api/collect?name&strategy&sources=csv&days&limit&instagram=...&linkedin_url=...`
 
 Services utilisent `axios`, `cheerio`, Apify ou YouTube API, plus normalisations (cache TTL 5 min pour LinkedIn HTML, conversions dates/metrics).
 
@@ -86,7 +85,7 @@ Services utilisent `axios`, `cheerio`, Apify ou YouTube API, plus normalisations
 - État principal dans `App()` :
   - `name`, `sources` (Set), `days`, `allResults`, `company`, `targets`.
   - Auth modale, cookies via fetch (`credentials: 'include'`).
-  - `buildSettingsFromCurrentSearch(name)` pour persister: `strategy`, `sources[]`, `days`, `limit`, `overrides` (rss handles + guessed handles).
+  - `buildSettingsFromCurrentSearch(name)` pour persister: `strategy`, `sources[]`, `days`, `limit`, `overrides` (handles + guessed handles).
   - `TargetsCard` affiche `settings`, statut dernière analyse, boutons :
     - ⭐ Sauvegarder (POST /targets)
     - Analyser (POST /targets/:id/analyze)
@@ -104,7 +103,7 @@ Services utilisent `axios`, `cheerio`, Apify ou YouTube API, plus normalisations
   - Regex email/UUID dans `constants/regex.js`.
   - Targets: `MAX_TARGET_NAME=160`, `MIN_PASSWORD_LENGTH=8`.
   - Settings normalisés (sources whitelists, days 1–3650, limit 1–50).
-- `collectSources` accepte overrides manuels (rss, instagram, tiktok, youtube, channel, q, linkedin_url) et fallback vers presets `COMPETITORS`.
+- `collectSources` accepte overrides manuels (instagram, tiktok, youtube, channel, q, linkedin_url) et fallback vers presets `COMPETITORS`.
 - LinkedIn : cache HTML, JSON-LD + DOM merging, dédup via canonical key (URN/activity).
 - `target_runs.items` stockés en JSON (tableau d’items normalisés), `used_sources` text[].
 

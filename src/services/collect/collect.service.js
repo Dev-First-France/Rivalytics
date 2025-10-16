@@ -1,30 +1,26 @@
-// Orchestre la collecte multi-sources (LinkedIn, RSS, YouTube). Instagram/TikTok désactivés (API payante).
+// Orchestre la collecte multi-sources (LinkedIn, YouTube). Instagram/TikTok désactivés (API payante).
 import { fetchLinkedIn, fetchLinkedInByUrl } from './linkedin.service.js';
-import { fetchRSS } from './rss.service.js';
 import { fetchYouTube } from './youtube.service.js';
 import { liCanonicalKey } from '../../utils/linkedin.js';
 
 const STRATEGIES = {
-  all: ['rss', 'linkedin', 'youtube'],
-  cheap: ['rss', 'linkedin', 'youtube'],
+  all: ['linkedin', 'youtube'],
+  cheap: ['linkedin', 'youtube'],
   social: ['linkedin', 'youtube'],
 };
 
 const COMPETITORS = {
   devfirst: {
-    rss: ['https://dev.to/feed/tag/nestjs', 'https://hnrss.org/frontpage'],
     youtube: '@googledevelopers',
     instagram: 'devfirst',
     tiktok: '',
   },
   rivalytics: {
-    rss: ['https://dev.to/feed/tag/webdev'],
     youtube: '',
     instagram: '',
     tiktok: '',
   },
   accenture: {
-    rss: [],
     youtube: 'UCvDOfCgmS7q4OYMKVpy5Xjw',
     instagram: 'accenture',
     tiktok: 'accenture',
@@ -36,7 +32,7 @@ export const getCompetitorConfig = (key) =>
   COMPETITORS[String(key || '').toLowerCase()] || {};
 
 const parseSources = ({ strategy, sources }) => {
-  const allowed = new Set(['rss', 'linkedin', 'youtube']);
+  const allowed = new Set(['linkedin', 'youtube']);
   const strategyKey = String(strategy || '').trim().toLowerCase();
   let list = STRATEGIES[strategyKey];
   const raw = String(sources || '').trim();
@@ -86,14 +82,12 @@ export async function collectSources(params) {
   });
 
   const cfg = getCompetitorConfig(name);
-  const rssList = cfg.rss || [];
   const ytTarget = cfg.youtube || rawName;
 
   const jobs = [
     sources.has('linkedin')
       ? fetchLinkedIn(rawName, { days, limit: 20 }).then((res) => res.items)
       : Promise.resolve([]),
-    sources.has('rss') ? fetchRSS(rssList, days) : Promise.resolve([]),
     sources.has('youtube')
       ? fetchYouTube({
           channel: ytTarget,
@@ -104,9 +98,9 @@ export async function collectSources(params) {
       : Promise.resolve([]),
   ];
 
-  const [liItems, rssItems, ytItems] = await Promise.all(jobs);
+  const [liItems, ytItems] = await Promise.all(jobs);
 
-  const merged = [...liItems, ...rssItems, ...ytItems].sort((a, b) => {
+  const merged = [...liItems, ...ytItems].sort((a, b) => {
     if (a.date && b.date) return a.date < b.date ? 1 : -1;
     if (!a.date && b.date) return 1;
     return -1;
@@ -120,4 +114,4 @@ export async function collectSources(params) {
   };
 }
 
-export { fetchLinkedIn, fetchLinkedInByUrl, fetchRSS, fetchYouTube };
+export { fetchLinkedIn, fetchLinkedInByUrl, fetchYouTube };

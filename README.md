@@ -1,6 +1,6 @@
 # Rivalytics API
 
-Backend Node.js/Express qui expose les fonctionnalités d'authentification, de gestion des targets et d'agrégation de contenus (LinkedIn, RSS, Instagram, TikTok, YouTube). Le code a été refactoré pour adopter une architecture modulaire claire.
+Backend Node.js/Express qui expose les fonctionnalités d'authentification, de gestion des targets et d'agrégation de contenus (LinkedIn, Instagram, TikTok, YouTube). Le code a été refactoré pour adopter une architecture modulaire claire.
 
 ## Démarrage rapide
 
@@ -50,7 +50,7 @@ Chaque contrôleur applique la validation minimale, appelle son service dédié 
 
 ## Targets & analyses
 
-- Chaque target stocke des `settings` (strategy, sources, days, limit, overrides pour rss/handles).
+- Chaque target stocke des `settings` (strategy, sources, days, limit, overrides pour handles).
 - Les paramètres peuvent être modifiés via `PATCH /targets/:id`.
 - `POST /targets/:id/analyze` déclenche une collecte (synchrone) et consigne un `target_run` avec statut, note, durée et résultats.
 - `GET /targets/:id/runs` retourne l'historique des analyses (limite par défaut 10, max 50).
@@ -69,7 +69,7 @@ Chaque contrôleur applique la validation minimale, appelle son service dédié 
 - Historique d'exécutions (`target_runs`) + derniers statuts stockés sur `targets`.
 - Agrégateurs:
   - `/api/collect` (orchestration multi-sources + déduplication)
-  - `/api/linkedin`, `/api/rss`, `/api/instagram`, `/api/tiktok`, `/api/youtube`
+  - `/api/linkedin`, `/api/instagram`, `/api/tiktok`, `/api/youtube`
 - CORS configurable avec `credentials: true` et logs en cas d'origine refusée.
 - Rate limiting dédié aux routes `/auth`.
 
@@ -89,7 +89,7 @@ Chaque contrôleur applique la validation minimale, appelle son service dédié 
    - `GET /targets/:id/runs` → liste historique (status/temps/note).
    - Dupliquer le même nom → 409.
    - `DELETE /targets/:id` → 204, 404 si mauvais id.
-4. Collect & scrapers (`/api/collect`, `/api/rss`, `/api/linkedin`, `/api/tiktok`, `/api/instagram`, `/api/youtube`).
+4. Collect & scrapers (`/api/collect`, `/api/linkedin`, `/api/tiktok`, `/api/instagram`, `/api/youtube`).
 5. Vérifier le comportement CORS avec les origines autorisées.
 6. Tester la connexion PostgreSQL en local et sur Render (SSL automatique).
 
